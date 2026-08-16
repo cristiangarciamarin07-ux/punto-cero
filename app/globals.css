@@ -1,0 +1,182 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Tokens · paleta de campaña solidaria
+   --------------------------------------------------------------------------
+   Blanco, rojo y azul. El blanco domina para que el contenido respire y se
+   lea en pantallas rayadas y a pleno sol; el azul sostiene la estructura y
+   comunica institucionalidad; el rojo se reserva para lo que exige acción y
+   nunca decora. Ningún emblema, ninguna cruz, ningún símbolo protegido por
+   los Convenios de Ginebra.
+
+   Los colores se declaran como canales RGB para que Tailwind pueda inyectar
+   opacidad (bg-azul/10, text-blanco/70). Con un hexadecimal plano esas clases
+   se descartan en silencio.
+   ========================================================================== */
+
+:root {
+  --blanco: 255 255 255;
+  --nieve: 246 248 251;     /* fondo general */
+  --borde: 220 228 236;
+  --gris: 92 108 124;       /* texto secundario */
+  --azul: 11 60 122;        /* estructura, encabezados, EN_PROCESO */
+  --azul-tinta: 7 38 78;    /* pie de página, contraste alto */
+  --azul-suave: 232 239 248;
+  --rojo: 208 32 47;        /* acción urgente, PENDIENTE */
+  --rojo-oscuro: 154 20 32; /* texto sobre fondos claros */
+  --verde: 20 122 84;       /* RESUELTO: ver nota en lib/tipos.ts */
+}
+
+html,
+body {
+  background: rgb(var(--nieve));
+  color: rgb(var(--azul-tinta));
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgb(var(--azul));
+  color: rgb(var(--blanco));
+}
+
+:focus-visible {
+  outline: 3px solid rgb(var(--azul));
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+/* ==========================================================================
+   Marca: onda sísmica. Geometría propia, sin emblemas de terceros.
+   ========================================================================== */
+
+.onda-sismica {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  background: rgb(var(--blanco));
+  clip-path: polygon(
+    0 55%, 14% 55%, 22% 12%, 34% 92%, 46% 34%, 56% 70%,
+    66% 46%, 76% 62%, 86% 55%, 100% 55%, 100% 66%, 82% 66%,
+    74% 74%, 64% 56%, 54% 84%, 44% 46%, 33% 100%, 21% 26%, 12% 66%, 0 66%
+  );
+}
+
+/* ==========================================================================
+   Franja de estado: además del color, cada estado tiene su propia trama, para
+   que se distinga sin depender de la visión cromática.
+   ========================================================================== */
+
+.franja-pendiente {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgb(var(--rojo)) 0 7px,
+    rgb(var(--rojo-oscuro)) 7px 14px
+  );
+}
+.franja-en-proceso {
+  background: rgb(var(--azul));
+}
+.franja-resuelto {
+  background: rgb(var(--verde));
+}
+
+/* ==========================================================================
+   Pines del mapa
+   ========================================================================== */
+
+.pin-terreno {
+  background: transparent;
+  border: 0;
+}
+
+.pin-envoltura {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 42px;
+}
+
+.pin-cuerpo {
+  position: absolute;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 4px;
+  transform: rotate(-45deg);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 3px 8px rgb(var(--azul-tinta) / 0.4);
+  border: 2px solid rgb(var(--blanco));
+}
+
+.pin-glifo {
+  transform: rotate(45deg);
+  font-size: 14px;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 1px 1px rgb(0 0 0 / 0.35);
+}
+
+.pin-halo {
+  position: absolute;
+  top: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  opacity: 0;
+}
+
+/* Solo los puntos sin atender laten: el movimiento marca lo urgente. */
+.pin-pulso .pin-halo {
+  animation: latido 2.2s ease-out infinite;
+}
+
+@keyframes latido {
+  0% { opacity: 0.5; transform: scale(1); }
+  70%, 100% { opacity: 0; transform: scale(2.4); }
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgb(var(--azul-tinta) / 0.22);
+}
+.leaflet-popup-content { margin: 12px 14px; }
+.leaflet-container {
+  font-family: inherit;
+  background: rgb(var(--borde));
+}
+
+/* ==========================================================================
+   Transiciones
+   ========================================================================== */
+
+.animar-entrada { animation: aparecer 0.18s ease-out; }
+.animar-hoja { animation: subir 0.24s cubic-bezier(0.22, 1, 0.36, 1); }
+
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+@keyframes subir {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (min-width: 640px) {
+  @keyframes subir {
+    from { transform: translateX(18px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

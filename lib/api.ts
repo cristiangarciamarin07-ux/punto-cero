@@ -187,7 +187,7 @@ export async function subirEvidencia(archivo: File): Promise<string> {
 
 export async function crearSolicitud(
   e: NuevaSolicitud,
-): Promise<{ id: string; folio: string; token_gestion: string }> {
+): Promise<{ id: string; folio: string; clave_gestion: string }> {
   if (!e.consentimiento) throw new Error('Falta autorizar el tratamiento de los datos.');
 
   if (MODO_DEMO || !supabase) {
@@ -210,7 +210,7 @@ export async function crearSolicitud(
       detalle: `Necesidad registrada para ${e.personas_afectadas} persona(s)`,
       ocurrido_en: ahora,
     });
-    return { id: nueva.id, folio, token_gestion: 'demo-token-0000' };
+    return { id: nueva.id, folio, clave_gestion: 'H8K2M-4TQ9P' };
   }
 
   const { data, error } = await supabase.rpc('crear_solicitud', {
@@ -230,7 +230,19 @@ export async function crearSolicitud(
   });
 
   if (error) throw new Error(traducir(error.message));
-  return Array.isArray(data) ? data[0] : data;
+  const fila = (Array.isArray(data) ? data[0] : data) ?? {};
+
+  // Se acepta el nombre antiguo por si la base todavía no se ha actualizado.
+  // Un comprobante sin clave deja a la persona sin forma de gestionar su punto,
+  // así que aquí conviene fallar ruidosamente antes que en silencio.
+  const clave = fila.clave_gestion ?? fila.token_gestion;
+  if (!clave) {
+    throw new Error(
+      'El servidor no devolvió la clave de gestión. La base de datos está desactualizada: ' +
+        'vuelve a ejecutar supabase/schema.sql completo.',
+    );
+  }
+  return { id: fila.id, folio: fila.folio, clave_gestion: String(clave) };
 }
 
 export async function registrarColaboracion(e: NuevaColaboracion): Promise<void> {
@@ -288,20 +300,20 @@ export async function reportarContenido(
   if (error) throw new Error(traducir(error.message));
 }
 
-export async function cerrarSolicitud(folio: string, token: string): Promise<boolean> {
+export async function cerrarSolicitud(folio: string, clave: string): Promise<boolean> {
   if (MODO_DEMO || !supabase) return true;
   const { data, error } = await supabase.rpc('cerrar_solicitud', {
-    p_folio: folio, p_token: token,
+    p_folio: folio, p_clave: clave,
   });
   if (error) throw new Error(traducir(error.message));
   return data as boolean;
 }
 
 /** Derecho de supresión y revocación (Ley 1581, art. 8). */
-export async function revocarConsentimiento(folio: string, token: string): Promise<boolean> {
+export async function revocarConsentimiento(folio: string, clave: string): Promise<boolean> {
   if (MODO_DEMO || !supabase) return true;
   const { data, error } = await supabase.rpc('revocar_consentimiento', {
-    p_folio: folio, p_token: token,
+    p_folio: folio, p_clave: clave,
   });
   if (error) throw new Error(traducir(error.message));
   return data as boolean;
@@ -358,6 +370,8 @@ function traducir(m: string): string {
   if (m.includes('SOLICITUD_EN_REVISION'))
     return 'Este punto está retirado temporalmente mientras se revisa un reporte.';
   if (m.includes('SOLICITUD_NO_ENCONTRADA')) return 'No encontramos ese punto.';
+  if (m.includes('DEMASIADOS_INTENTOS'))
+    return 'Demasiados intentos fallidos con este folio. Espera quince minutos.';
   if (m.includes('TELEFONO_INVALIDO')) return 'Revisa el número: entre 7 y 10 dígitos.';
   if (m.includes('CLAVE_NO_CONFIGURADA'))
     return 'El servidor no tiene configurada la llave de cifrado. Avisa al administrador.';

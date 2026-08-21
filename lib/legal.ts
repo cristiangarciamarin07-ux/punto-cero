@@ -14,9 +14,9 @@
 export const VERSION_POLITICA = '2026.08-v2';
 
 export const RESPONSABLE = {
-  nombre: '[Cristian Garcia]',
-  canal: '[cristiangarciamarin07@gmail.com]',
-  ciudad: '[Buga], Colombia',
+  nombre: 'Cristian Garcia',
+  canal: 'puntoceroayuda@gmail.com',
+  ciudad: 'Buga, Colombia',
 };
 
 export const AVISO_CORTO =

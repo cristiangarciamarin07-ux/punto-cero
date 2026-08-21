@@ -63,7 +63,7 @@ export default function PlataformaAyuda() {
   const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
   const [seleccion, setSeleccion] = useState<Solicitud | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
-  const [comprobante, setComprobante] = useState<{ folio: string; token: string } | null>(null);
+  const [comprobante, setComprobante] = useState<{ folio: string; clave: string } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
@@ -126,7 +126,7 @@ export default function PlataformaAyuda() {
 
   async function alEnviarSolicitud(datos: Parameters<typeof crearSolicitud>[0]) {
     const r = await crearSolicitud(datos);
-    setComprobante({ folio: r.folio, token: r.token_gestion });
+    setComprobante({ folio: r.folio, clave: r.clave_gestion });
     setPanel('comprobante');
     await cargar();
   }
@@ -251,7 +251,7 @@ export default function PlataformaAyuda() {
       </Hoja>
 
       <Hoja abierta={panel === 'comprobante' && !!comprobante} titulo="Solicitud publicada" alCerrar={() => setPanel(null)}>
-        {comprobante && <Comprobante folio={comprobante.folio} token={comprobante.token} alCerrar={() => setPanel(null)} />}
+        {comprobante && <Comprobante folio={comprobante.folio} clave={comprobante.clave} alCerrar={() => setPanel(null)} />}
       </Hoja>
 
       <Hoja abierta={panel === 'gestionar'} titulo="Gestionar mi registro" alCerrar={() => setPanel(null)}>
@@ -650,7 +650,7 @@ function FormularioSolicitud({
   const [direccion, setDireccion] = useState('');
   const [tipo, setTipo] = useState<TipoAyuda | ''>('');
   const [descripcion, setDescripcion] = useState('');
-  const [personas, setPersonas] = useState(1);
+  const [personas, setPersonas] = useState('1');
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gps, setGps] = useState<'inactivo' | 'buscando' | 'error'>('inactivo');
   const [foto, setFoto] = useState<{ archivo: File; url: string; kb: number } | null>(null);
@@ -713,7 +713,7 @@ function FormularioSolicitud({
         direccion_referencia: direccion.trim(),
         tipo_ayuda: tipo as TipoAyuda,
         descripcion: descripcion.trim(),
-        personas_afectadas: personas,
+        personas_afectadas: normalizarPersonas(personas),
         telefono: telefono.trim() || null,
         latitud: coords?.lat ?? null,
         longitud: coords?.lng ?? null,
@@ -750,7 +750,7 @@ function FormularioSolicitud({
           <input value={telefono} onChange={(e) => setTelefono(e.target.value)} inputMode="tel" placeholder="Puedes dejarlo vacío" className={entrada(!!errores.telefono)} />
         </Campo>
         <Campo etiqueta="Personas afectadas">
-          <input type="number" min={1} max={999} value={personas} onChange={(e) => setPersonas(Math.max(1, Number(e.target.value) || 1))} className={entrada(false)} />
+          <ContadorPersonas valor={personas} alCambiar={setPersonas} />
         </Campo>
       </div>
 
@@ -814,9 +814,9 @@ function FormularioSolicitud({
       <div className="rounded-lg border border-borde bg-blanco p-3">
         <p className="font-display text-sm font-bold uppercase tracking-wider text-azul-tinta">Foto (opcional)</p>
         <p className="mt-0.5 text-xs leading-snug text-gris">
-          JPG, PNG o WEBP, máximo 3 MB. Antes de subirla eliminamos toda la metadata,
-          incluida la ubicación GPS que la cámara incrusta. No subas fotos con personas
-          identificables, menores, documentos ni placas.
+          Toma la foto normal, del tamaño que sea: la reducimos aquí mismo antes de subirla.
+          En el proceso se elimina toda la metadata, incluida la ubicación GPS que la cámara
+          incrusta. No subas fotos con personas identificables, menores, documentos ni placas.
         </p>
 
         {foto ? (
@@ -1078,8 +1078,9 @@ function Gestionar({ alTerminar }: { alTerminar: (mensaje: string) => void }) {
       <Campo etiqueta="Folio">
         <input value={folio} onChange={(e) => setFolio(e.target.value.toUpperCase())} placeholder="AYU-01038" className={`${entrada(false)} font-mono`} />
       </Campo>
-      <Campo etiqueta="Clave de gestión">
-        <input value={token} onChange={(e) => setToken(e.target.value)} placeholder="00000000-0000-0000-0000-000000000000" className={`${entrada(false)} font-mono text-xs`} />
+      <Campo etiqueta="Clave de gestión" ayuda="Los diez caracteres que recibiste. No importan mayúsculas, guiones ni espacios.">
+        <input value={token} onChange={(e) => setToken(e.target.value.toUpperCase())} placeholder="H8K2M-4TQ9P" maxLength={40}
+          className={`${entrada(false)} font-mono text-lg tracking-widest`} />
       </Campo>
 
       <button onClick={() => accion('cerrar')} disabled={ocupado} className="w-full rounded-lg bg-verde px-4 py-3.5 font-display text-base font-bold uppercase tracking-wider text-blanco transition hover:brightness-110 disabled:opacity-60">
@@ -1113,31 +1114,62 @@ function Gestionar({ alTerminar }: { alTerminar: (mensaje: string) => void }) {
 // Comprobante
 // ============================================================================
 
-function Comprobante({ folio, token, alCerrar }: { folio: string; token: string; alCerrar: () => void }) {
-  return (
-    <div className="space-y-5 text-center">
-      <div className="rounded-xl border-2 border-dashed border-azul/30 bg-azul-suave px-4 py-6">
-        <p className="font-display text-xs font-bold uppercase tracking-widest text-azul">Tu folio</p>
-        <p className="mt-1 font-mono text-4xl font-medium tracking-tight text-azul-tinta">{folio}</p>
-      </div>
+function Comprobante({ folio, clave, alCerrar }: { folio: string; clave: string; alCerrar: () => void }) {
+  const [copiado, setCopiado] = useState(false);
 
-      <p className="text-sm leading-relaxed text-azul-tinta/90">
-        Ya está publicado. Anota o toma foto de estos dos datos: son la única forma de volver a
-        controlar tu registro, y no los podemos recuperar porque no guardamos ningún dato tuyo.
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(`Punto Cero — folio ${folio}, clave ${clave}`);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      setCopiado(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <p className="text-center text-sm leading-relaxed text-azul-tinta/90">
+        Tu punto ya está publicado. Anota estos dos datos o tómales una foto: son la única
+        forma de volver a controlarlo, y no los podemos recuperar porque no guardamos ningún
+        dato tuyo.
       </p>
 
-      <div className="rounded-lg border border-rojo/30 bg-rojo/5 p-3 text-left">
-        <p className="font-display text-[11px] font-bold uppercase tracking-wider text-rojo">
-          Clave de gestión · guárdala ahora
+      <div className="rounded-xl border-2 border-azul/25 bg-azul-suave px-4 py-5 text-center">
+        <p className="font-display text-[11px] font-bold uppercase tracking-widest text-azul">Folio</p>
+        <p className="mt-1 font-mono text-3xl font-medium tracking-tight text-azul-tinta">{folio}</p>
+
+        <div className="mx-auto my-4 h-px w-24 bg-azul/20" />
+
+        <p className="font-display text-[11px] font-bold uppercase tracking-widest text-rojo">
+          Clave de gestión
         </p>
-        <p className="mt-1 break-all font-mono text-xs text-azul-tinta">{token}</p>
-        <p className="mt-1.5 text-[11px] leading-snug text-gris">
-          Con el folio y esta clave puedes cerrar tu punto o suprimir tu información desde
-          «Mi registro», en cualquier momento.
+        {/* Diez caracteres en dos bloques: se copian a mano y se dictan por
+            teléfono sin equivocarse. El alfabeto no tiene ni O ni I ni L. */}
+        <p className="mt-1 font-mono text-3xl font-bold tracking-[0.15em] text-azul-tinta">
+          {clave}
+        </p>
+        <p className="mt-2 text-[11px] text-gris">
+          No distingue mayúsculas ni guiones. Da igual si confundes la O con el 0.
         </p>
       </div>
 
-      <button onClick={alCerrar} className="w-full rounded-lg bg-azul px-4 py-3.5 font-display text-base font-bold uppercase tracking-wider text-blanco transition hover:bg-azul-tinta">
+      <button
+        onClick={copiar}
+        className="w-full rounded-lg border-2 border-azul px-4 py-3 font-display text-sm font-bold uppercase tracking-wider text-azul transition hover:bg-azul hover:text-blanco"
+      >
+        {copiado ? 'Copiado ✓' : 'Copiar folio y clave'}
+      </button>
+
+      <p className="rounded-lg border border-borde bg-blanco px-3 py-2.5 text-[13px] leading-snug text-gris">
+        Con estos dos datos puedes cerrar tu punto cuando ya no necesites ayuda, o suprimir tu
+        información, desde <strong className="font-semibold text-azul-tinta">Mi registro</strong>.
+      </p>
+
+      <button
+        onClick={alCerrar}
+        className="w-full rounded-lg bg-azul px-4 py-3.5 font-display text-base font-bold uppercase tracking-wider text-blanco transition hover:bg-azul-tinta"
+      >
         Ya la guardé
       </button>
     </div>
@@ -1147,6 +1179,61 @@ function Comprobante({ folio, token, alCerrar }: { folio: string; token: string;
 // ============================================================================
 // Piezas reutilizables
 // ============================================================================
+
+/**
+ * Contador de personas.
+ *
+ * El campo guarda TEXTO, no un número. Con `useState(1)` y
+ * `Math.max(1, Number(e.target.value) || 1)` el valor rebota a 1 en cuanto el
+ * campo queda vacío, así que es imposible borrar el 1 para escribir otra cifra:
+ * el usuario ve que el teclado responde pero el número nunca cambia. Guardando
+ * la cadena se permite el estado intermedio vacío y se normaliza al salir del
+ * campo y al enviar.
+ *
+ * Los botones − y + están porque este formulario se llena con una mano, en la
+ * calle y con prisa; acertar en una casilla numérica de un celular no es
+ * trivial en esas condiciones.
+ */
+function ContadorPersonas({ valor, alCambiar }: { valor: string; alCambiar: (v: string) => void }) {
+  const paso = (delta: number) => {
+    const n = normalizarPersonas(valor) + delta;
+    alCambiar(String(Math.min(999, Math.max(1, n))));
+  };
+
+  const boton = 'grid h-12 w-12 shrink-0 place-items-center rounded-lg border border-borde bg-blanco font-display text-xl font-bold text-azul transition hover:bg-azul hover:text-blanco disabled:opacity-40';
+
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={() => paso(-1)} aria-label="Una persona menos"
+        disabled={normalizarPersonas(valor) <= 1} className={boton}>−</button>
+
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        aria-label="Número de personas afectadas"
+        value={valor}
+        onChange={(e) => {
+          const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 3);
+          alCambiar(v);           // se admite quedar vacío mientras se escribe
+        }}
+        onFocus={(e) => e.target.select()}
+        onBlur={() => alCambiar(String(normalizarPersonas(valor)))}
+        className={`${entrada(false)} text-center font-mono text-lg`}
+      />
+
+      <button type="button" onClick={() => paso(1)} aria-label="Una persona más"
+        disabled={normalizarPersonas(valor) >= 999} className={boton}>+</button>
+    </div>
+  );
+}
+
+/** Devuelve siempre un entero entre 1 y 999, incluso desde una cadena vacía. */
+function normalizarPersonas(valor: string): number {
+  const n = parseInt(valor, 10);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(999, Math.max(1, n));
+}
 
 function entrada(conError: boolean) {
   return `w-full rounded-lg border bg-blanco px-3 py-3 text-[15px] text-azul-tinta outline-none transition placeholder:text-gris/60 focus:ring-2 disabled:bg-borde/40 disabled:text-gris ${
